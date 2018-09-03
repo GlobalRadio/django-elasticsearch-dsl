@@ -233,7 +233,7 @@ class DocType(DSLDocType):
             object_list = thing
 
         actions = self._get_actions(object_list, action)
-        index = kwargs.pop('index')
+        index = kwargs.pop('index', None)
         if index:
             actions = self._set_index(actions, index)
 
