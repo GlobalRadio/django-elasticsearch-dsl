@@ -1,4 +1,5 @@
 from __future__ import unicode_literals, absolute_import
+from datetime import datetime
 from django.core.management.base import BaseCommand, CommandError
 from django.utils.six.moves import input
 from ...registries import registry
@@ -42,6 +43,13 @@ class Command(BaseCommand):
             dest='action',
             const='rebuild',
             help="Delete the indices and then recreate and populate them"
+        )
+        parser.add_argument(
+            '--reindex',
+            action='store_const',
+            dest='action',
+            const='reindex',
+            help="Rebuilds indices with no downtime using an alias"
         )
         parser.add_argument(
             '-f',
@@ -110,9 +118,42 @@ class Command(BaseCommand):
     def _rebuild(self, models, options):
         if not self._delete(models, options):
             return
-
         self._create(models, options)
         self._populate(models, options)
+
+    def _reindex(self, models, options):
+        for cls in registry.get_documents(models):
+            doc = cls()
+            es = doc.connection
+
+            alias = doc._doc_type.index
+
+            next_index = self._next_index_name(alias)
+            es.indices.create(next_index)
+            self.stdout.write("Creating index '{}'".format(next_index))
+
+            qs = doc.get_queryset()
+            self.stdout.write("Indexing {} '{}' objects".format(
+                qs.count(), cls._doc_type.model.__name__)
+            )
+            doc.update(qs, index=next_index)
+            es.indices.refresh(index=next_index)
+
+            self.stdout.write("Updating alias '{}' -> '{}'".format(alias, next_index))
+            es.indices.put_alias(next_index, alias)
+            es.indices.update_aliases(body={
+                'actions': [
+                    {'remove': {'alias': alias, 'index': '{}-*'.format(alias)}},
+                    {'add': {'alias': alias, 'index': next_index}},
+                ]
+            })
+
+            old_indices = [index for index in es.indices.get("{}-*".format(alias)) if index != next_index]
+            for old_index in old_indices:
+                es.indices.delete(old_index)
+
+    def _next_index_name(self, name):
+        return '{}-{}'.format(name, datetime.now().strftime('%Y.%m.%d.%H.%M.%S'))
 
     def handle(self, *args, **options):
         if not options['action']:
@@ -132,8 +173,10 @@ class Command(BaseCommand):
             self._delete(models, options)
         elif action == 'rebuild':
             self._rebuild(models, options)
+        elif action == 'reindex':
+            self._reindex(models, options)
         else:
             raise CommandError(
                 "Invalid action. Must be one of"
-                " '--create','--populate', '--delete' or '--rebuild' ."
+                " '--create','--populate', '--delete', '--rebuild' or '--reindex' ."
             )

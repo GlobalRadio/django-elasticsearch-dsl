@@ -201,6 +201,11 @@ class DocType(DSLDocType):
             ),
         }
 
+    def _set_index(self, actions, index):
+        for action in actions:
+            action['_index'] = index
+            yield action
+
     def _get_actions(self, object_list, action):
         if self._doc_type.queryset_pagination is not None:
             paginator = Paginator(
@@ -227,6 +232,9 @@ class DocType(DSLDocType):
         else:
             object_list = thing
 
-        return self.bulk(
-            self._get_actions(object_list, action), **kwargs
-        )
+        actions = self._get_actions(object_list, action)
+        index = kwargs.pop('index')
+        if index:
+            actions = self._set_index(actions, index)
+
+        return self.bulk(actions, **kwargs)
