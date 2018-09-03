@@ -1,7 +1,7 @@
 from __future__ import unicode_literals, absolute_import
-from datetime import datetime
 from django.core.management.base import BaseCommand, CommandError
 from django.utils.six.moves import input
+from django.utils import timezone
 from ...registries import registry
 
 
@@ -153,7 +153,7 @@ class Command(BaseCommand):
                 es.indices.delete(old_index)
 
     def _next_index_name(self, name):
-        return '{}-{}'.format(name, datetime.now().strftime('%Y.%m.%d.%H.%M.%S'))
+        return '{}-{}'.format(name, timezone.now().strftime('%Y.%m.%d.%H.%M.%S'))
 
     def handle(self, *args, **options):
         if not options['action']:
