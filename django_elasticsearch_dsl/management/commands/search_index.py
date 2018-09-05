@@ -129,7 +129,7 @@ class Command(BaseCommand):
             alias = doc._doc_type.index
 
             next_index = self._next_index_name(alias)
-            es.indices.create(next_index)
+            doc_instance.init(next_index)
             self.stdout.write("Creating index '{}'".format(next_index))
 
             qs = doc_instance.get_queryset()
