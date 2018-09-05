@@ -122,9 +122,9 @@ class Command(BaseCommand):
         self._populate(models, options)
 
     def _reindex(self, models, options):
-        for cls in registry.get_documents(models):
-            doc = cls()
-            es = doc.connection
+        for doc in registry.get_documents(models):
+            doc_instance = doc()
+            es = doc_instance.connection
 
             alias = doc._doc_type.index
 
@@ -132,11 +132,11 @@ class Command(BaseCommand):
             es.indices.create(next_index)
             self.stdout.write("Creating index '{}'".format(next_index))
 
-            qs = doc.get_queryset()
+            qs = doc_instance.get_queryset()
             self.stdout.write("Indexing {} '{}' objects".format(
-                qs.count(), cls._doc_type.model.__name__)
+                qs.count(), doc._doc_type.model.__name__)
             )
-            doc.update(qs, index=next_index)
+            doc_instance.update(qs, index=next_index)
             es.indices.refresh(index=next_index)
 
             self.stdout.write("Updating alias '{}' -> '{}'".format(alias, next_index))
